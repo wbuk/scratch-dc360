@@ -1,0 +1,121 @@
+{
+    "about": "DC360's changes to the Scratch editor (scratchfoundation/scratch-editor, GNU AGPL v3, built nightly as a release by github.com/wbuk/scratch-dc360), re-applied to every new version. Each change must match or the new version is not prepared. Most of DC360's changes are in dc360/dc360-scratch.js and dc360-scratch.css, which work through Scratch's own engine and match its menus by their shape, so Scratch's code hardly changes. Scratch's library pictures and sounds come from DC360's own copy (wbuk/scratch-assets), which the updater tops up from assets.txt before a new version can be switched on.",
+    "assets": [
+        { "from": "dc360-scratch.js", "to": "dc360/dc360-scratch.js" },
+        { "from": "dc360-scratch.css", "to": "dc360/dc360-scratch.css" },
+        { "from": "dc360-player.html", "to": "dc360/player.html" },
+        { "from": "dc360-player.js", "to": "dc360/dc360-player.js" }
+    ],
+    "changes": [
+        {
+            "id": "dc360_files",
+            "label": "DC360 files (Save to DC360, My Work, Current file, Help menu, no uploads, nothing from outside websites), loaded before Scratch starts",
+            "file": "index.html",
+            "type": "insert_before",
+            "find": "<script defer=\"defer\" src=\"gui.js\"></script>",
+            "text": "<link rel=\"stylesheet\" href=\"dc360/dc360-scratch.css\"><script src=\"dc360/dc360-scratch.js\"></script>"
+        },
+        {
+            "id": "title",
+            "label": "Browser tab title: Scratch",
+            "file": "index.html",
+            "type": "replace",
+            "find": "<title>Scratch 3.0 GUI</title>",
+            "replace": "<title>Scratch</title>"
+        },
+        {
+            "id": "hosts_gui",
+            "label": "Costumes, backdrops and sounds come from DC360's own copy of the Scratch library (wbuk/scratch-assets), never from scratch.mit.edu; projects are never loaded from scratch.mit.edu",
+            "file": "gui.js",
+            "type": "replace",
+            "find": "assetHost:\"https://assets.scratch.mit.edu\",projectHost:\"https://projects.scratch.mit.edu\"",
+            "replace": "assetHost:\"/wbuk/scratch-assets\",projectHost:\"/wbuk/scratch-projects\""
+        },
+        {
+            "id": "library_host_gui",
+            "label": "The library's pictures (the Choose a Sprite / Costume / Backdrop / Sound boxes) come from DC360's own copy too",
+            "file": "gui.js",
+            "type": "replace",
+            "find": "\"https://cdn.assets.scratch.mit.edu\"",
+            "replace": "\"/wbuk/scratch-assets\""
+        },
+        {
+            "id": "extensions_gui",
+            "label": "Extensions that need an outside website or a device (Face Sensing, Text to Speech, Translate, micro:bit, Force and Acceleration, LEGO EV3, BOOST, WeDo) are hidden from Add an Extension",
+            "file": "gui.js",
+            "type": "regex",
+            "find": "extensionId:\"(faceSensing|text2speech|translate|microbit|gdxfor|ev3|boost|wedo2)\",",
+            "replace": "extensionId:\"$1\",hidden:!0,",
+            "times": 8
+        },
+        {
+            "id": "no_services_gui",
+            "label": "No outside websites: the Text to Speech and Translate services (scratch.mit.edu) are never called",
+            "file": "gui.js",
+            "type": "regex",
+            "find": "https://(synthesis-service|translate-service)\\.scratch\\.mit\\.edu/",
+            "replace": "/wbuk/scratch-no-service/",
+            "times": 2
+        },
+        {
+            "id": "no_videos_gui",
+            "label": "No outside websites: the tutorial videos (fast.wistia.com) are never loaded",
+            "file": "gui.js",
+            "type": "regex",
+            "find": "https://fast\\.wistia\\.com/",
+            "replace": "/wbuk/scratch-no-videos/",
+            "times": 2
+        },
+        {
+            "id": "no_models_gui",
+            "label": "No outside websites: the Face Sensing models (tfhub.dev, cdn.jsdelivr.net) are never loaded",
+            "file": "gui.js",
+            "type": "regex",
+            "find": "https://tfhub\\.dev|https://cdn\\.jsdelivr\\.net/npm/@mediapipe/face_detection@",
+            "replace": "/wbuk/scratch-no-cdn/",
+            "times": 5
+        },
+        {
+            "id": "hosts_player",
+            "label": "The teacher's player: library files from DC360's own copy",
+            "file": "player.js",
+            "type": "replace",
+            "find": "assetHost:\"https://assets.scratch.mit.edu\",projectHost:\"https://projects.scratch.mit.edu\"",
+            "replace": "assetHost:\"/wbuk/scratch-assets\",projectHost:\"/wbuk/scratch-projects\""
+        },
+        {
+            "id": "library_host_player",
+            "label": "The teacher's player: library pictures from DC360's own copy",
+            "file": "player.js",
+            "type": "replace",
+            "find": "\"https://cdn.assets.scratch.mit.edu\"",
+            "replace": "\"/wbuk/scratch-assets\""
+        },
+        {
+            "id": "no_outside_player",
+            "label": "The teacher's player: no outside websites (services, videos, models)",
+            "file": "player.js",
+            "type": "regex",
+            "find": "https://(synthesis-service|translate-service)\\.scratch\\.mit\\.edu/|https://fast\\.wistia\\.com/|https://tfhub\\.dev|https://cdn\\.jsdelivr\\.net/npm/@mediapipe/face_detection@",
+            "replace": "/wbuk/scratch-no-outside/",
+            "times": 9
+        }
+    ],
+    "checks": [
+        { "file": "index.html", "contains": "dc360/dc360-scratch.js" },
+        { "file": "index.html", "contains": "<title>Scratch</title>" },
+        { "file": "dc360/dc360-scratch.js", "contains": "project.save" },
+        { "file": "dc360/player.html", "contains": "dc360-player.js" },
+        { "file": "gui.js", "absent": "assets.scratch.mit.edu" },
+        { "file": "gui.js", "absent": "projects.scratch.mit.edu" },
+        { "file": "gui.js", "absent": "synthesis-service.scratch.mit.edu" },
+        { "file": "gui.js", "absent": "translate-service.scratch.mit.edu" },
+        { "file": "gui.js", "absent": "fast.wistia.com" },
+        { "file": "gui.js", "absent": "tfhub.dev" },
+        { "file": "gui.js", "absent": "cdn.jsdelivr.net" },
+        { "file": "gui.js", "contains": "extensionId:\"ev3\",hidden:!0," },
+        { "file": "player.js", "absent": "assets.scratch.mit.edu" },
+        { "file": "player.js", "absent": "fast.wistia.com" },
+        { "file": "assets.txt", "contains": ".svg" }
+    ]
+}

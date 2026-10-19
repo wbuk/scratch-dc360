@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scratch player</title>
+<!-- The teacher's Play (com_dc360scratch Student Scratch page): Scratch's own player in a SANDBOXED frame (scripts only),
+     so a student's project never runs with the teacher's login. The page posts the .sb3 here. Added by the Libraries
+     app updater (recipe scratch). -->
+<style>
+html, body { margin: 0; height: 100%; overflow: hidden; background: #fff; }
+/* Only the green flag, stop and the stage: no See inside, no full screen link out. */
+[class*="stage-header_stage-size-row"], [class*="stage-header_stage-button"]:not([class*="green-flag"]), [class*="menu-bar_menu-bar"],
+[class*="stage-header_embed-scratch-logo"], [class*="player_see-inside"], button[class*="see-inside"] { display: none !important; }
+.dc360-pl-wait { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font: 600 15px Arial, sans-serif; color: #475569; }
+</style>
+<script src="dc360-player.js"></script>
+<script defer src="../player.js"></script>
+</head>
+<body><div class="dc360-pl-wait" id="dc360PlWait">Loading the project…</div></body>
+</html>

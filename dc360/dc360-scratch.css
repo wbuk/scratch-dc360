@@ -1,0 +1,73 @@
+/* Scratch on DC360 (recipe scratch, Libraries app updater). Scratch's class names end in a code that changes with
+   every build (menu-bar_menu-bar-item_NKeCD), so everything here matches the start of the name only. */
+
+/* Nothing that needs scratch.mit.edu: Share, See Project Page, Tutorials (videos from an outside website), the
+   account and My Stuff area, and the feedback link. */
+[class*="menu-bar_menu-bar-item"]:has([class*="share-button_share-button"]),
+[class*="menu-bar_menu-bar-item"]:has([class*="community-button_community-button"]),
+[class*="menu-bar_menu-bar-item"]:has([class*="menu-bar_tutorials-label"]),
+[class*="menu-bar_menu-bar-item"]:has([class*="menu-bar_remix-button"]),
+[class*="menu-bar_account-info-group"],
+[class*="menu-bar_mystuff"],
+[class*="menu-bar_feedback"],
+[class*="menu-bar_author-info"],
+[class*="share-button_share-button"],
+[class*="community-button_community-button"],
+[class*="backpack_backpack-container"] {
+    display: none !important;
+}
+
+/* The Scratch logo top left is a picture only (it would open scratch.mit.edu in some versions). */
+[class*="menu-bar_scratch-logo"] { pointer-events: none; }
+
+/* Scratch's own project title box: the DC360 title is shown as Current file instead (Save to DC360 sets it). */
+[class*="menu-bar_title-field-growable"],
+[class*="menu-bar_menu-bar-item"]:has([class*="project-title-input_title-field"]) {
+    display: none !important;
+}
+
+/* No uploads from the computer: the Upload Sprite / Costume / Backdrop / Sound buttons (each holds a file input). */
+[class*="action-menu_more-button"]:has(input[type="file"]),
+[class*="action-menu_more-buttons"] > li:has(input[type="file"]),
+input[type="file"] {
+    display: none !important;
+}
+
+/* File > Load from your computer (hidden by dc360-scratch.js, which also blocks it). */
+.dc360-sc-hidden { display: none !important; }
+
+/* The DC360 items in the File menu look like Scratch's own (they copy its class); this marks them a little. */
+.dc360-sc-item span::before { content: ''; display: inline-block; width: 0.5rem; }
+
+/* Help and Current file in the menu bar. */
+.dc360-sc-help { cursor: pointer; user-select: none; }
+.dc360-sc-current {
+    display: inline-flex; align-items: center; gap: 0.35rem; max-width: 38vw; margin: 0 0.5rem; padding: 0.3rem 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 0.5rem; background: rgba(255, 255, 255, 0.12); color: #fff;
+    font: inherit; font-size: 0.8rem; white-space: nowrap; overflow: hidden; cursor: pointer;
+}
+.dc360-sc-current:hover { background: rgba(255, 255, 255, 0.24); }
+.dc360-sc-cur-label { opacity: 0.85; }
+.dc360-sc-cur-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.dc360-sc-cur-none { font-style: italic; }
+.dc360-sc-current .dc360-cur-state { opacity: 0.85; }
+.dc360-sc-current .dc360-cur-state.is-unsaved { color: #ffe08a; font-weight: 700; opacity: 1; }
+
+/* Messages. */
+.dc360-sc-toast {
+    position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%); z-index: 100003; max-width: 80vw; padding: 0.7rem 1.1rem;
+    border-radius: 0.6rem; background: #1f2937; color: #fff; font: 600 0.9rem/1.35 "Helvetica Neue", Helvetica, Arial, sans-serif;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); transition: opacity 0.3s;
+}
+.dc360-sc-toast.is-error { background: #b91c1c; }
+.dc360-sc-toast.is-going { opacity: 0; }
+
+/* The teacher's feedback box. */
+.dc360-sc-modal-back { position: fixed; inset: 0; z-index: 100001; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.45); }
+.dc360-sc-modal { width: min(640px, 92vw); max-height: 86vh; display: flex; flex-direction: column; background: #fff; border-radius: 0.75rem; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3); }
+.dc360-sc-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.8rem 1rem; border-bottom: 1px solid #e5e7eb; }
+.dc360-sc-modal-close { padding: 0.4rem 0.9rem; border: 0; border-radius: 0.45rem; background: #855cd6; color: #fff; font-weight: 700; cursor: pointer; }
+.dc360-sc-modal-body { padding: 1rem; overflow: auto; }
+
+/* The shared zoom on My Work pictures sits above Scratch's own layers. */
+.dcm-zoom { z-index: 100002 !important; }
