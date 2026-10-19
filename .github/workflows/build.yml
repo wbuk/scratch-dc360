@@ -1,0 +1,122 @@
+# Builds the Scratch editor (https://github.com/scratchfoundation/scratch-editor, AGPL-3.0) and publishes it as a
+# release, because Scratch publishes its releases as source code only. DC360 Libraries (Libraries > Apps) checks
+# these releases, downloads scratch-dc360.zip and applies DC360's own changes on the DC360 server (the changes are
+# published in this repository too, in dc360/, as the AGPL asks).
+#
+# Runs every night: if Scratch has a new (non pre-release) release, it is built with Scratch's own build
+# (npm ci + npm run build) and released here under the same tag, e.g. v15.2.0. The zip holds
+# packages/scratch-gui/build (the editor), LICENSE, and assets.txt: every library picture and sound the editor
+# uses, so DC360 can keep its own copy of them up to date.
+name: Build Scratch
+
+on:
+  schedule:
+    - cron: '41 2 * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'A Scratch release tag to build (empty = the latest release)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HUSKY: '0'
+      PUPPETEER_SKIP_DOWNLOAD: '1'
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@v4
+
+      - name: Find the Scratch release
+        id: ver
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            TAG=$(gh release list --repo scratchfoundation/scratch-editor --exclude-pre-releases --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$TAG is already built: nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out Scratch
+        if: steps.ver.outputs.exists == 'false'
+        uses: actions/checkout@v4
+        with:
+          repository: scratchfoundation/scratch-editor
+          ref: ${{ steps.ver.outputs.tag }}
+          path: scratch
+
+      - name: Set up Node
+        if: steps.ver.outputs.exists == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: scratch/.nvmrc
+
+      - name: Libraries the build needs
+        if: steps.ver.outputs.exists == 'false'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libcairo2-dev libpango1.0-dev libssl-dev libjpeg-dev libgif-dev
+
+      - name: Build Scratch
+        if: steps.ver.outputs.exists == 'false'
+        working-directory: scratch
+        run: |
+          NODE_ENV=development npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Make the zip
+        if: steps.ver.outputs.exists == 'false'
+        run: |
+          B=scratch/packages/scratch-gui/build
+          test -f "$B/index.html"
+          test -f "$B/gui.js"
+          cp scratch/LICENSE "$B/LICENSE.txt"
+          # Every library picture and sound named in the editor (md5 + extension), one per line.
+          grep -ohE '[0-9a-f]{32}\.(svg|png|jpg|jpeg|gif|bmp|wav|mp3)' "$B"/*.js | sort -u > "$B/assets.txt"
+          COMMIT=$(git -C scratch rev-parse HEAD)
+          printf '{"source":"scratchfoundation/scratch-editor","tag":"%s","commit":"%s","built":"%s","assets":%s}\n' \
+            "${{ steps.ver.outputs.tag }}" "$COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(wc -l < "$B/assets.txt")" > "$B/scratch-build.json"
+          cd "$B" && zip -qr "$GITHUB_WORKSPACE/scratch-dc360.zip" .
+          ls -l "$GITHUB_WORKSPACE/scratch-dc360.zip"
+
+      - name: Check the build
+        if: steps.ver.outputs.exists == 'false'
+        run: |
+          unzip -l scratch-dc360.zip | grep -q ' index.html$'
+          unzip -l scratch-dc360.zip | grep -q ' gui.js$'
+          unzip -l scratch-dc360.zip | grep -q ' player.html$'
+          unzip -l scratch-dc360.zip | grep -q ' assets.txt$'
+
+      - name: Publish the release
+        if: steps.ver.outputs.exists == 'false'
+        run: |
+          gh release create "${{ steps.ver.outputs.tag }}" scratch-dc360.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Scratch ${{ steps.ver.outputs.tag }}" \
+            --notes "The Scratch editor built from scratchfoundation/scratch-editor ${{ steps.ver.outputs.tag }}. Scratch is by the Scratch Foundation, GNU Affero General Public License v3 (LICENSE.txt in the zip). DC360's own changes are in this repository's dc360/ folder."
+
+      # GitHub switches off nightly jobs in a repository with no activity for 60 days. On the 1st of each month
+      # this records the last check, which keeps the nightly build running even when Scratch has not changed.
+      - name: Keep the nightly build switched on
+        if: github.event_name == 'schedule'
+        run: |
+          if [ "$(date -u +%d)" = "01" ]; then
+            date -u +%Y-%m-%dT%H:%M:%SZ > last-check.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+            git add last-check.txt
+            git commit -m "Monthly check (keeps the nightly build switched on)"
+            git push
+          fi
