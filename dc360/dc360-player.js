@@ -53,6 +53,15 @@
 
     var vm = null;
 
+    /* The player is drawn at Scratch's own size: shrink (or grow) it to fill the teacher's box, with no scroll bars. */
+    function fit() {
+        var b = d.body;
+        b.style.zoom = '';
+        var wide = d.documentElement.scrollWidth, high = d.documentElement.scrollHeight;
+        var z = Math.min(w.innerWidth / Math.max(1, wide), w.innerHeight / Math.max(1, high));
+        if (z > 0 && Math.abs(z - 1) > 0.02) { b.style.zoom = String(Math.min(z, 2)); }
+    }
+
     w.addEventListener('message', function (e) {
         if (e.source !== w.parent || !e.data || e.data.type !== 'dc360-play' || !(e.data.sb3 instanceof ArrayBuffer) || !vm) { return; }
         vm.loadProject(e.data.sb3).then(function () {
@@ -62,6 +71,8 @@
             Array.prototype.forEach.call(d.querySelectorAll('body > div > button, body > div > div > button'), function (b) {
                 if (!b.closest('[class*="stage-header"], [class*="controls"]')) { b.remove(); }
             });
+            fit();
+            w.addEventListener('resize', fit);
             vm.start();
             vm.greenFlag();
         }, function () { fail('This project could not be played.'); });
