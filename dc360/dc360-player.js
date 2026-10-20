@@ -57,7 +57,11 @@
     function fit() {
         var b = d.body;
         b.style.zoom = '';
-        var wide = d.documentElement.scrollWidth, high = d.documentElement.scrollHeight;
+        // The stage is drawn at a fixed 480 x 360 below the green flag bar; the page hides what does not fit, so the
+        // stage itself is measured (not the page's scroll size).
+        var s = d.querySelector('[class*="stage-wrapper"]') || b;
+        var r = s.getBoundingClientRect();
+        var wide = r.right + Math.max(0, r.left), high = r.bottom + 4;
         var z = Math.min(w.innerWidth / Math.max(1, wide), w.innerHeight / Math.max(1, high));
         if (z > 0 && Math.abs(z - 1) > 0.02) { b.style.zoom = String(Math.min(z, 2)); }
     }
