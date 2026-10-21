@@ -117,5 +117,18 @@
         { "file": "player.js", "absent": "assets.scratch.mit.edu" },
         { "file": "player.js", "absent": "fast.wistia.com" },
         { "file": "assets.txt", "contains": ".svg" }
+    ],
+    "features": [
+        { "label": "DC360 adds: File menu items Save to DC360, My Work and Save as new (Load from your computer is hidden)", "checks": [{ "file": "dc360/dc360-scratch.js", "contains": "menuItem('Save to DC360'" }, { "file": "dc360/dc360-scratch.js", "contains": "menuItem('Save as new" }] },
+        { "label": "DC360 adds: Current file: (saved) / (unsaved) in the menu bar (click it to save)", "checks": [{ "file": "dc360/dc360-scratch.js", "contains": "Current file:" }, { "file": "dc360/dc360-scratch.js", "contains": "(unsaved)" }] },
+        { "label": "DC360 adds: Help menu in the menu bar (DC360 Help, Shortcuts, About)", "checks": [{ "file": "dc360/dc360-scratch.js", "contains": "s.helpMenu(help, 'scratch')" }] },
+        { "label": "DC360 adds: Ctrl+S saves to DC360", "checks": [{ "file": "dc360/dc360-scratch.js", "contains": "(e.key === 's' || e.key === 'S')" }] },
+        { "label": "DC360 adds: My Work shows the teacher's marks and comments (Feedback); deleted projects go to the Trash for 60 days", "checks": [{ "file": "dc360/dc360-scratch.js", "contains": "Dc360Marking.student(body, { app: 'scratch'" }, { "file": "dc360/dc360-scratch.js", "contains": "trashUrl: '/my-trash?app=scratch'" }] },
+        { "label": "DC360 adds: opens a saved project from My Work or a teacher's Edit button (a teacher can edit a student's project with them)", "checks": [{ "file": "dc360/dc360-scratch.js", "contains": "function openFromAddress" }, { "file": "dc360/dc360-scratch.js", "contains": "'Editing ' + current.ownerName" }] },
+        { "label": "DC360 adds: no uploads (Upload Sprite, Costume, Backdrop and Sound, Load from your computer and dropped files are blocked)", "checks": [{ "file": "dc360/dc360-scratch.js", "contains": "cannot open files from your computer" }, { "file": "dc360/dc360-scratch.css", "contains": "input[type=\"file\"]" }] },
+        { "label": "DC360 adds: no links to other websites", "checks": [{ "file": "dc360/dc360-scratch.js", "contains": "goes to another website" }] },
+        { "label": "DC360 adds: Share, See Project Page, Tutorials, the account area and the Backpack are hidden (they need scratch.mit.edu)", "checks": [{ "file": "dc360/dc360-scratch.css", "contains": "share-button_share-button" }, { "file": "dc360/dc360-scratch.css", "contains": "backpack_backpack-container" }] },
+        { "label": "DC360 adds: teacher's Play player (plays a student's project in a safe, sandboxed frame and starts it with the green flag)", "checks": [{ "file": "dc360/player.html", "contains": "dc360-player.js" }, { "file": "dc360/dc360-player.js", "contains": "vm.greenFlag()" }] },
+        { "label": "DC360 adds: pressing Refresh keeps the work (only for the same login; kept in this browser tab, never sent anywhere; ?open= wins)", "checks": [{ "file": "dc360/dc360-scratch.js", "contains": "var DRAFT_KEY = 'dc360scratch.draft';" }, { "file": "dc360/dc360-scratch.js", "contains": "draftMark = tokenMark(token);" }] }
     ]
 }

@@ -9,6 +9,7 @@
    - No uploads: every way of choosing a file from the computer (Upload Sprite / Costume / Backdrop / Sound, Load from
      your computer, dropping a file) is blocked. Students draw, record, or use the Scratch library.
    ?open=<id> on the DC360 page's address (My Work's Open, a teacher's Edit) opens that project.
+   Refresh keeps the project (only for the same DC360 login): see "refresh keeps the project" below.
    All text from the server goes in via textContent. */
 (function (w, d) {
     'use strict';
@@ -143,6 +144,7 @@
     function setCurrent(c) { current = c; showCurrent(); }
 
     function showCurrent() {
+        laterDraft(); // the Current file or (saved)/(unsaved) changed: the copy kept for a refresh follows
         var item = d.getElementById('dc360_sc_current');
         if (!item) { return; }
         var theirs = current && current.isOwner === false;
@@ -395,6 +397,232 @@
         Array.prototype.forEach.call(d.querySelectorAll('[class*="menu-bar_menu-bar-menu"] ul, ul[class*="menu_menu_"]'), fixFileMenu);
     }).observe(d.documentElement, { childList: true, subtree: true });
 
+    /* ---------- refresh keeps the project ---------- */
+
+    /*
+     * Like DC360 Logic and Draw, pressing the browser's Refresh keeps the work: a copy of the project (the same .sb3
+     * that Save to DC360 makes, vm.saveProjectSb3), its Current file and whether it is saved are kept in this browser
+     * tab and never sent anywhere (no extra requests to DC360). The copy carries a mark made from the student's DC360
+     * session token (from project.boot, fetched at start-up anyway), so it only comes back for the same login: after a
+     * log out, or for anyone else, it is deleted, never opened.
+     *  - A small project goes in this tab's session storage (gone when the tab is closed).
+     *  - A big one (costumes, sounds) goes in IndexedDB, under this tab's own id, which only this tab's session
+     *    storage knows. Every start-up deletes the copies of any other login, and any older than 12 hours; a start-up
+     *    with nobody logged in deletes them all.
+     *  - A project asked for in the address (?open=, My Work or a teacher's Edit) wins over the copy.
+     * Scratch's own "Leave site?" warning is left as it is (it still protects work when the tab is closed).
+     */
+    var DRAFT_KEY = 'dc360scratch.draft';
+    var DRAFT_DB = 'dc360scratch-draft';
+    var DRAFT_SMALL = 750000;            // bytes of .sb3 kept in session storage (about 1 MB of text); more goes to IndexedDB
+    var DRAFT_MAX_AGE = 12 * 3600 * 1000;
+    var draftMark = '';
+    var draftReady = false;
+    var draftTimer = 0;
+    var draftFirst = 0;
+    var draftBusy = false;
+    var draftAgain = false;
+    var draftInDb = false;
+
+    /* A mark made from the session token: the same token always gives the same mark, and the token itself is not kept. */
+    function tokenMark(t) {
+        var h1 = 0xdeadbeef, h2 = 0x41c6ce57, i, c;
+        for (i = 0; i < t.length; i++) {
+            c = t.charCodeAt(i);
+            h1 = Math.imul(h1 ^ c, 2654435761);
+            h2 = Math.imul(h2 ^ c, 1597334677);
+        }
+        h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+        h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+        return 'm' + (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36) + t.length.toString(36);
+    }
+
+    function ssGet(k) { try { return w.sessionStorage.getItem(k); } catch (e) { return null; } }
+    function ssDel(k) { try { w.sessionStorage.removeItem(k); } catch (e) { /* nothing kept */ } }
+
+    function tabId() {
+        var id = ssGet(DRAFT_KEY + '.tab');
+        if (!id) {
+            id = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+            try { w.sessionStorage.setItem(DRAFT_KEY + '.tab', id); } catch (e) { /* no session storage: no copy */ }
+        }
+        return id;
+    }
+
+    function dbDo(mode, fn) {
+        return new Promise(function (resolve, reject) {
+            if (!w.indexedDB) { reject(new Error('No IndexedDB')); return; }
+            var open = w.indexedDB.open(DRAFT_DB, 1);
+            open.onupgradeneeded = function () { open.result.createObjectStore('drafts'); };
+            open.onerror = function () { reject(open.error); };
+            open.onblocked = function () { reject(new Error('IndexedDB blocked')); };
+            open.onsuccess = function () {
+                var con = open.result, out, tx;
+                try { tx = con.transaction('drafts', mode); } catch (e) { con.close(); reject(e); return; }
+                var req = fn(tx.objectStore('drafts'));
+                if (req) { req.onsuccess = function () { out = req.result; }; }
+                tx.oncomplete = function () { con.close(); resolve(out); };
+                tx.onerror = tx.onabort = function () { con.close(); reject(tx.error); };
+            };
+        });
+    }
+
+    function toText(buf) {
+        var b = new Uint8Array(buf), s = '', i;
+        for (i = 0; i < b.length; i += 0x8000) { s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); }
+        return w.btoa(s);
+    }
+
+    function fromText(t) {
+        var s = w.atob(t), b = new Uint8Array(s.length), i;
+        for (i = 0; i < s.length; i++) { b[i] = s.charCodeAt(i); }
+        return b.buffer;
+    }
+
+    /* This tab's copy is deleted (session storage, and its IndexedDB copy if it has one). */
+    function dropDraft() {
+        var id = ssGet(DRAFT_KEY + '.tab');
+        var inDb = draftInDb || /"where":"db"/.test(ssGet(DRAFT_KEY) || '');
+        ssDel(DRAFT_KEY);
+        ssDel(DRAFT_KEY + '.data');
+        draftInDb = false;
+        if (inDb && id && w.indexedDB) { dbDo('readwrite', function (st) { return st.delete(id); }).catch(function () { /* none */ }); }
+    }
+
+    /* Copies left by any other login (or older than 12 hours) are deleted; with nobody logged in, all of them. */
+    function sweepDrafts(mark) {
+        if (!w.indexedDB) { return; }
+        if (!mark) {
+            try { w.indexedDB.deleteDatabase(DRAFT_DB); } catch (e) { /* none */ }
+            return;
+        }
+        dbDo('readwrite', function (st) {
+            var cur = st.openCursor();
+            cur.onsuccess = function () {
+                var c = cur.result;
+                if (!c) { return; }
+                var v = c.value || {};
+                if (v.tok !== mark || !(Date.now() - (v.time || 0) < DRAFT_MAX_AGE)) { c.delete(); }
+                c.continue();
+            };
+        }).catch(function () { /* nothing kept */ });
+    }
+
+    function putDraft(rec, buf) {
+        var id = tabId();
+        rec.tok = draftMark;
+        rec.time = Date.now();
+        if (buf.byteLength <= DRAFT_SMALL) {
+            try {
+                w.sessionStorage.setItem(DRAFT_KEY + '.data', toText(buf));
+                rec.where = 'tab';
+                w.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(rec));
+                if (draftInDb) { draftInDb = false; dbDo('readwrite', function (st) { return st.delete(id); }).catch(function () { /* none */ }); }
+                return Promise.resolve();
+            } catch (e) {
+                ssDel(DRAFT_KEY + '.data'); // session storage is full: IndexedDB instead
+            }
+        }
+        return dbDo('readwrite', function (st) { return st.put({ tok: rec.tok, time: rec.time, data: buf }, id); }).then(function () {
+            draftInDb = true;
+            rec.where = 'db';
+            ssDel(DRAFT_KEY + '.data');
+            try { w.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(rec)); } catch (e) { /* no copy */ }
+        });
+    }
+
+    function readDraft() {
+        var meta = null;
+        try { meta = JSON.parse(ssGet(DRAFT_KEY) || 'null'); } catch (e) { meta = null; }
+        if (!meta || !draftMark || meta.tok !== draftMark) { dropDraft(); return Promise.resolve(null); }
+        if (meta.where === 'tab') {
+            var t = ssGet(DRAFT_KEY + '.data');
+            try { return Promise.resolve(t ? { meta: meta, data: fromText(t) } : null); } catch (e) { return Promise.resolve(null); }
+        }
+        var id = ssGet(DRAFT_KEY + '.tab');
+        if (!id) { return Promise.resolve(null); }
+        return dbDo('readonly', function (st) { return st.get(id); }).then(function (r) {
+            if (r && r.tok === draftMark && r.data) { draftInDb = true; return { meta: meta, data: r.data }; }
+            return null;
+        }, function () { return null; });
+    }
+
+    /* Changes are copied a moment after the student stops (at most every 8 seconds while they keep going). */
+    function laterDraft() {
+        if (!draftReady) { return; }
+        if (!draftFirst) { draftFirst = Date.now(); }
+        clearTimeout(draftTimer);
+        draftTimer = setTimeout(keepDraft, Date.now() - draftFirst > 8000 ? 0 : 1500);
+    }
+
+    function keepDraft() {
+        draftTimer = 0;
+        var v = engine();
+        if (!v || !token || !draftMark || !draftReady) { draftFirst = 0; return; }
+        if (opening || draftBusy) { draftAgain = true; return; }
+        draftFirst = 0;
+        draftBusy = true;
+        var rec = { current: current, dirty: dirty };
+        Promise.resolve(v.saveProjectSb3()).then(function (sb3) {
+            if (sb3 instanceof ArrayBuffer) { return sb3; }
+            return sb3 && sb3.arrayBuffer ? sb3.arrayBuffer() : new Response(sb3).arrayBuffer();
+        }).then(function (buf) {
+            return putDraft(rec, buf);
+        }).catch(function () { /* storage full or blocked: a refresh starts empty, as before */ }).then(function () {
+            draftBusy = false;
+            if (draftAgain) { draftAgain = false; laterDraft(); }
+        });
+    }
+
+    /* Scratch first opens its own starting project; the copy is opened after that, or Scratch would open over it. */
+    function whenShowing(fn) {
+        (function check(tries) {
+            var s = reduxStore(), st = null;
+            try { st = s ? s.getState().scratchGui.projectState.loadingState : null; } catch (e) { st = null; }
+            if (st === 'SHOWING_WITHOUT_ID' || st === 'SHOWING_WITH_ID' || tries >= 200) { fn(); return; }
+            setTimeout(function () { check(tries + 1); }, 100);
+        })(0);
+    }
+
+    function restoreDraft() {
+        return readDraft().then(function (got) {
+            var v = engine();
+            if (!got || !v) { return false; }
+            opening++;
+            return v.loadProject(got.data).then(function () {
+                var rec = got.meta;
+                setScratchTitle(rec.current ? rec.current.title : '');
+                // The same as opening from My Work, but (saved)/(unsaved) is as it was before the refresh.
+                current = rec.current || null;
+                dirty = !!rec.dirty;
+                showCurrent();
+                setTimeout(function () { opening = Math.max(0, opening - 1); dirty = !!rec.dirty; showCurrent(); }, 1200);
+                return true;
+            }, function () { opening = Math.max(0, opening - 1); dropDraft(); return false; });
+        }).catch(function () { return false; });
+    }
+
+    function hasOpenAddress() {
+        var host = w;
+        try { if (w.parent !== w && w.parent.location.search) { host = w.parent; } } catch (e) { host = w; }
+        return /[?&]open=\d{1,10}(?:&|$)/.test(host.location.search || '');
+    }
+
+    function startDraft() {
+        draftMark = tokenMark(token);
+        sweepDrafts(draftMark);
+        if (hasOpenAddress()) {
+            // A project asked for in the address wins over the copy kept for a refresh.
+            dropDraft();
+            draftReady = true;
+            setTimeout(openFromAddress, 400);
+            return;
+        }
+        whenShowing(function () {
+            restoreDraft().then(function () { draftReady = true; });
+        });
+    }
+
     /* ---------- start ---------- */
 
     w.dc360ScratchSave = { save: openSave, work: openWork, quick: quickSave };
@@ -410,9 +638,14 @@
     (function wait(tries) {
         var v = engine();
         if (!v) { if (tries < 300) { setTimeout(function () { wait(tries + 1); }, 100); } return; }
-        v.on('PROJECT_CHANGED', changed);
+        v.on('PROJECT_CHANGED', function () { changed(); laterDraft(); });
         fetch(api + 'project.boot', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
-            if (j && j.ok && j.loggedIn && j.token) { token = j.token; loadMarking(); setTimeout(openFromAddress, 400); }
+            if (j && j.ok && j.loggedIn && j.token) { token = j.token; loadMarking(); startDraft(); }
+            else {
+                // Nobody logged in: no copy kept for a refresh is ever opened, and every one is deleted.
+                dropDraft();
+                sweepDrafts('');
+            }
         }).catch(function () { /* Not inside DC360: Save to DC360 says so. */ });
     })(0);
 })(window, document);
