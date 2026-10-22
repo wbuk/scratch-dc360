@@ -653,8 +653,62 @@
     function quickOrSave() { current ? quickSave() : openSave(); }
     function saveAsNew() { if (needLogin()) { return; } openSave(); }
 
+    /*
+     * RUN at the right-hand end of the top bar, where every DC360 app has its Run (owner 2026-10-22): Scratch's own
+     * green flag picture, then the word RUN. It does what the green flag does (the flag above the stage stays too).
+     */
+    function addRun(bar) {
+        var run = d.getElementById('dc360_sc_run');
+        if (run && run.parentNode === bar && d.getElementById('dc360_sc_stop')) { return; }
+        var flag = d.querySelector('img[class*="green-flag_green-flag"]');
+        if (!flag) { return; }
+        if (!run) {
+            run = el('button', 'dc360-sc-run');
+            run.type = 'button';
+            run.id = 'dc360_sc_run';
+            run.title = 'Run the project (the same as the green flag)';
+            var img = el('img', 'dc360-sc-run-flag');
+            img.src = flag.src;
+            img.alt = '';
+            run.appendChild(img);
+            run.appendChild(el('span', '', 'RUN'));
+            run.addEventListener('click', function () {
+                if (vm && typeof vm.greenFlag === 'function') { vm.greenFlag(); return; }
+                var f = d.querySelector('img[class*="green-flag_green-flag"]');
+                if (f) { f.click(); }
+            });
+        }
+        // STOP to the right of RUN, as in the HTML and Python apps: Scratch's stop sign, then STOP.
+        var stop = d.getElementById('dc360_sc_stop');
+        var sign = d.querySelector('img[class*="stop-all_stop-all"]');
+        if (!stop) {
+            stop = el('button', 'dc360-sc-run dc360-sc-stop');
+            stop.type = 'button';
+            stop.id = 'dc360_sc_stop';
+            stop.title = 'Stop the project (the same as the red stop sign)';
+            var simg = el('img', 'dc360-sc-run-flag');
+            simg.src = sign ? sign.src : '';
+            simg.alt = '';
+            stop.appendChild(simg);
+            stop.appendChild(el('span', '', 'STOP'));
+            stop.addEventListener('click', function () {
+                if (vm && typeof vm.stopAll === 'function') { vm.stopAll(); return; }
+                var s = d.querySelector('img[class*="stop-all_stop-all"]');
+                if (s) { s.click(); }
+            });
+        }
+        // Before Scratch's own buttons at the far right (e.g. Fullscreen), after everything else.
+        var right = null;
+        Array.prototype.forEach.call(bar.children, function (n) {
+            if (!right && n !== run && n !== stop && /full ?screen/i.test(n.textContent || '')) { right = n; }
+        });
+        bar.insertBefore(run, right);
+        bar.insertBefore(stop, right);
+    }
+
     function addBar(bar) {
         if (!bar) { return; }
+        addRun(bar);
         if (d.getElementById('dc360_sc_current')) {
             // React drew Scratch's buttons again: its File and Edit stay hidden.
             if (usingBar) { var g = bar.querySelector('[class*="menu-bar_file-group"]'); if (g) { hideScratchMenus(g); } }

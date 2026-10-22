@@ -66,6 +66,20 @@ input[type="file"] {
 .dc360-sc-current .dc360-cur-state { opacity: 0.85; }
 .dc360-sc-current .dc360-cur-state.is-unsaved { color: #ffe08a; font-weight: 700; opacity: 1; }
 
+/* RUN at the right-hand end of the bar (the green flag, then RUN), like Run in every DC360 app. */
+.dc360-sc-run {
+    /* Clear of the DC360 page's Fullscreen button, which sits over the top right-hand corner of Scratch. */
+    display: inline-flex; align-items: center; gap: 0.45rem; margin: 0 9.5rem 0 auto; padding: 0.3rem 0.9rem 0.3rem 0.35rem;
+    border: 0; border-radius: 0.5rem; background: #15803d; color: #fff; font: inherit; font-size: 0.95rem; font-weight: 700;
+    letter-spacing: 0.04em; cursor: pointer; flex: none; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.dc360-sc-run:hover, .dc360-sc-run:focus-visible { background: #166534; outline: none; }
+/* STOP, to the right of RUN (as in the HTML and Python apps); the gap for Fullscreen is after it. */
+.dc360-sc-run:not(.dc360-sc-stop) { margin-right: 0.5rem; }
+.dc360-sc-stop { margin: 0 9.5rem 0 0; background: #dc2626; }
+.dc360-sc-stop:hover, .dc360-sc-stop:focus-visible { background: #b91c1c; }
+.dc360-sc-run-flag { width: 1.75rem; height: 1.75rem; padding: 0.2rem; border-radius: 0.35rem; background: #fff; box-sizing: border-box; object-fit: contain; }
+
 /* Messages. */
 .dc360-sc-toast {
     position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%); z-index: 100003; max-width: 80vw; padding: 0.7rem 1.1rem;
