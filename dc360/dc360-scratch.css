@@ -39,6 +39,19 @@ input[type="file"] {
 /* The DC360 items in the File menu look like Scratch's own (they copy its class); this marks them a little. */
 .dc360-sc-item span::before { content: ''; display: inline-block; width: 0.5rem; }
 
+/* The ONE DC360 menu bar (dc360Say.menuBar, put before Scratch's own buttons by dc360-scratch.js), in Scratch's purple
+   bar: white words, Scratch's own darker hover. Scratch's File and Edit menus are hidden (their items are in it). */
+[data-dc360-moved] { display: none !important; }
+.dc360mb.dc360-sc-bar { flex: none; flex-wrap: nowrap; align-self: stretch; margin-right: 0.25rem; font: 700 0.75rem/1 "Helvetica Neue", Helvetica, Arial, sans-serif; }
+.dc360-sc-bar .dc360mb__icon { width: 28px; height: 28px; margin: 0 0.5rem 0 0.25rem; }
+.dc360-sc-bar .dc360mb__btn { align-self: stretch; padding: 0 0.6rem; border-radius: 0; color: #fff; font: inherit; }
+.dc360-sc-bar .dc360mb__btn:hover,
+.dc360-sc-bar .dc360mb__btn:focus-visible,
+.dc360-sc-bar .dc360mb__btn[aria-expanded="true"] { background: rgba(0, 0, 0, 0.15); }
+.dc360-sc-bar .dc360mb__btn.is-file { color: #fff; }
+.dc360-sc-bar .dc360mb__btn.is-empty { color: rgba(255, 255, 255, 0.45); }
+.dc360-sc-bar .dc360mb__btn.is-empty:hover { background: none; }
+
 /* Help and Current file in the menu bar. */
 .dc360-sc-help { cursor: pointer; user-select: none; }
 .dc360-sc-current {

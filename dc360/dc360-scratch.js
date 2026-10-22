@@ -1,11 +1,14 @@
-/* Scratch on DC360: Save to DC360, My Work, Current file, the Help menu and no uploads, the same as the other DC360
-   apps. Added by the Libraries app updater (recipe scratch), so it comes back after every Scratch update.
+/* Scratch on DC360: the ONE DC360 menu bar, Save to DC360, My Work, Current file, the Help menu and no uploads, the
+   same as the other DC360 apps. Added by the Libraries app updater (recipe scratch), so it comes back after every
+   Scratch update.
 
    It works through Scratch's own engine (the VM, found through React), so nothing in Scratch's code needs changing:
    - Save:  vm.saveProjectSb3() (the .sb3 file) plus a picture of the stage (vm.renderer.requestSnapshot), sent to
             com_dc360scratch. The server leaves out Scratch library costumes and sounds (DC360 keeps one copy).
    - Open:  com_dc360scratch project.load gives the whole .sb3 back; vm.loadProject() opens it.
-   - File menu: "Save to DC360" and "My Work" are added; "Load from your computer" is removed (no uploads).
+   - Menu bar: the DC360 bar (File, Edit, Insert, View, Arrange, My Work, Help) replaces Scratch's File and Edit menus
+            (see "the ONE DC360 menu bar" below). Outside DC360, Scratch's File menu gets "Save to DC360" and "My Work"
+            and loses "Load from your computer" (no uploads).
    - No uploads: every way of choosing a file from the computer (Upload Sprite / Costume / Backdrop / Sound, Load from
      your computer, dropping a file) is blocked. Students draw, record, or use the Scratch library.
    ?open=<id> on the DC360 page's address (My Work's Open, a teacher's Edit) opens that project.
@@ -21,7 +24,7 @@
     var opening = 0;
     var vm = null;
     var store = null;
-    var NO_UPLOADS = 'On DC360, Scratch cannot open files from your computer. Draw your own costumes, record sounds, or choose from the Scratch library. Open your saved projects with File > My Work.';
+    var NO_UPLOADS = 'On DC360, Scratch cannot open files from your computer. Draw your own costumes, record sounds, or choose from the Scratch library. Open your saved projects with My Work.';
 
     function el(tag, cls, text) {
         var n = d.createElement(tag);
@@ -227,7 +230,7 @@
             return openProject(it.id, it.title, it).then(function () {
                 toast(it.isOwner ? 'Opened: ' + it.title : 'Opened ' + it.ownerName + '’s project: ' + it.title + '. Update saves your changes into their work.', false, it.isOwner ? 0 : 7000);
             });
-        }).catch(function () { say('That project could not be opened. Use File > My Work to find it.', true); });
+        }).catch(function () { say('That project could not be opened. Use My Work to find it.', true); });
     }
 
     /* ---------- My Work ---------- */
@@ -341,7 +344,283 @@
         });
     })();
 
-    /* ---------- the menu bar ---------- */
+    /* ---------- the ONE DC360 menu bar (user 2026-10-22) ---------- */
+
+    /*
+     * The same menu bar as every DC360 app (dc360Say.menuBar from DC360 Help): the DC360 icon, File, Edit, Insert, View,
+     * Arrange, My Work, Help, then "Current file:", then what is left of Scratch's own bar (its logo, Settings and
+     * Debug: the owner decides later). Scratch's File and Edit menus are hidden: everything in them is in the DC360
+     * menus. Scratch's bar is React, so the DC360 bar is put next to it (not inside its menus) and every item calls
+     * Scratch itself: its engine (vm), its store (the same actions its own buttons send) and its code area (Blockly's
+     * own Undo, Redo, Cut, Copy and Paste, the same as its keyboard shortcuts). On the Costumes and Sounds tabs, Edit
+     * presses the paint and sound editors' own shortcut keys. Without DC360 Help (Scratch outside DC360), Scratch's
+     * own File menu gets Save to DC360 and My Work instead (below).
+     */
+    var usingBar = false;
+
+    function sayApi() {
+        try {
+            var s = w.dc360Say || (w.parent && w.parent.dc360Say);
+            return s && typeof s.menuBar === 'function' ? s : null;
+        } catch (e) { return null; }
+    }
+
+    function hint(msg) {
+        var s = sayApi();
+        if (s && s.hint) { try { s.hint(msg); return; } catch (e) { /* the note below */ } }
+        toast(msg);
+    }
+
+    /* A React class component above a node of Scratch's page (e.g. its menu bar's own code, its code area's). */
+    function instance(selector, test) {
+        var f = fiberOf(d.querySelector(selector));
+        for (var i = 0; f && i < 200; i++, f = f.return) {
+            var s = f.stateNode;
+            if (s && !s.nodeType && test(s)) { return s; }
+        }
+        return null;
+    }
+
+    function act(action) {
+        var s = reduxStore();
+        if (s) { s.dispatch(action); }
+    }
+
+    function gui() {
+        var s = reduxStore();
+        try { return s ? s.getState().scratchGui : null; } catch (e) { return null; }
+    }
+
+    /* 0 Code, 1 Costumes, 2 Sounds. */
+    function activeTab() {
+        var g = gui();
+        return g && g.editorTab ? g.editorTab.activeTabIndex : 0;
+    }
+
+    function showTab(i) {
+        if (activeTab() !== i) { act({ type: 'scratch-gui/navigation/ACTIVATE_TAB', activeTabIndex: i }); }
+    }
+
+    /* The code area: Scratch's Blocks (its workspace and its copy of Blockly). */
+    function blocks() {
+        var b = instance('[class*="blocks_blocks"]', function (s) { return s.workspace && s.ScratchBlocks; });
+        return b ? { ws: b.workspace, sb: b.ScratchBlocks } : null;
+    }
+
+    /* A key sent to the page, as if typed (the paint and sound editors listen on the whole page). */
+    function press(key, shift, target) {
+        var one = key.length === 1;
+        var ev = new w.KeyboardEvent('keydown', { key: key, code: one ? 'Key' + key.toUpperCase() : key, ctrlKey: one, shiftKey: !!shift,
+            bubbles: true, cancelable: true });
+        var kc = one ? key.toUpperCase().charCodeAt(0) : ({ Delete: 46 }[key] || 0);
+        try {
+            Object.defineProperty(ev, 'keyCode', { get: function () { return kc; } });
+            Object.defineProperty(ev, 'which', { get: function () { return kc; } });
+        } catch (e) { /* key is enough */ }
+        (target || d.body).dispatchEvent(ev);
+    }
+
+    var KEYS = { undo: ['z', false], redo: ['Z', true], cut: ['x', false], copy: ['c', false], paste: ['v', false] };
+
+    /* Blockly's own shortcut (the same thing Ctrl+C etc. do in the code area), on the block that was clicked. */
+    function blockShortcut(cmd) {
+        var b = blocks();
+        if (!b) { return false; }
+        if (cmd === 'undo' || cmd === 'redo') { b.ws.undo(cmd === 'redo'); return true; }
+        try {
+            var reg = b.sb.ShortcutRegistry && b.sb.ShortcutRegistry.registry;
+            var item = reg ? reg.getRegistry()[cmd] : null;
+            if (item) {
+                var fm = b.sb.getFocusManager ? b.sb.getFocusManager() : null;
+                var scope = { focusedNode: fm && fm.getFocusedNode ? fm.getFocusedNode() : null };
+                var ev = new w.KeyboardEvent('keydown', { cancelable: true });
+                if (item.preconditionFn && !item.preconditionFn(b.ws, scope)) { return false; }
+                return item.callback(b.ws, ev, item, scope) !== false;
+            }
+        } catch (e) { /* the key below */ }
+        var k = KEYS[cmd];
+        press(k[0], k[1], d.querySelector('.injectionDiv'));
+        return true;
+    }
+
+    /* Edit's five, on the text being typed if there is some, else on the tab showing (code, costume or sound). */
+    function editDo(cmd) {
+        var t = d.activeElement;
+        if (t && (/^(input|textarea)$/i.test(t.tagName) || t.isContentEditable)) {
+            if (cmd !== 'paste') { d.execCommand(cmd); return; }
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                navigator.clipboard.readText().then(function (txt) { t.focus(); d.execCommand('insertText', false, txt); },
+                    function () { hint('Your browser did not allow pasting from the menu. Press Ctrl+V instead.'); });
+            } else { hint('Press Ctrl+V to paste.'); }
+            return;
+        }
+        var tab = activeTab();
+        if (tab === 0) {
+            if (!blockShortcut(cmd)) {
+                hint(cmd === 'paste' ? 'Copy a block first (click it, then Edit > Copy), then choose Paste again.'
+                    : 'Click a block in the code area first, then choose ' + cmd.charAt(0).toUpperCase() + cmd.slice(1) + ' again.');
+            }
+            return;
+        }
+        // The sound editor has no Cut key: copy, then delete what is chosen.
+        if (tab === 2 && cmd === 'cut') { press('c'); press('Delete'); return; }
+        press(KEYS[cmd][0], KEYS[cmd][1]);
+    }
+
+    /* File > New: Scratch's own new project, after a DC360 question if there is work that is not saved. */
+    function newProject() {
+        var bar = instance('[class*="menu-bar_menu-bar_"]', function (s) { return typeof s.handleClickNew === 'function'; });
+        if (!bar || typeof bar.props.onClickNew !== 'function') { say('Scratch is still starting. Please try again.', true); return; }
+        var g = gui();
+        var risky = dirty || (!current && !!(g && g.projectChanged));
+        var go = function (yes) {
+            if (!yes) { return; }
+            opening++;
+            bar.props.onClickNew(!!(bar.props.canSave && bar.props.canCreateNew));
+            setScratchTitle('');
+            dirty = false;
+            setCurrent(null);
+            setTimeout(function () { opening = Math.max(0, opening - 1); dirty = false; showCurrent(); }, 1500);
+        };
+        if (!risky) { go(true); return; }
+        var s = sayApi();
+        var q = 'Start a new project? Anything not saved to DC360 will be lost.';
+        if (s && s.confirm) { Promise.resolve(s.confirm(q)).then(go); } else { go(w.confirm(q)); }
+    }
+
+    /* File > Export: the project as a .sb3 file on this computer (Scratch's own "Save to your computer"). */
+    function exportSb3() {
+        var v = engine();
+        if (!v) { say('Scratch is still starting. Please try again.', true); return; }
+        v.saveProjectSb3().then(function (blob) {
+            var a = d.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = String((current && current.title) || 'Scratch Project').replace(/[\\/:*?"<>|]+/g, ' ').trim() + '.sb3';
+            d.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+        }).catch(function () { say('Your project could not be exported. Please try again.', true); });
+    }
+
+    /* Insert: Scratch's own library boxes (DC360's own copy of the Scratch library), on the tab they belong to. */
+    function library(modal, tab) {
+        return function () {
+            if (tab !== undefined) { showTab(tab); }
+            setTimeout(function () { act({ type: 'scratch-gui/modals/OPEN_MODAL', modal: modal }); }, tab !== undefined ? 50 : 0);
+        };
+    }
+
+    function costumeLibrary() {
+        var v = engine();
+        var stage = v && v.editingTarget && v.editingTarget.isStage;
+        library(stage ? 'backdropLibrary' : 'costumeLibrary', 1)();
+    }
+
+    /* Restore: what Scratch's Edit > Restore brings back (the last sprite, costume or sound deleted). */
+    function restoreFun() {
+        var g = gui();
+        return g && g.restoreDeletion && typeof g.restoreDeletion.restoreFun === 'function' ? g.restoreDeletion : null;
+    }
+
+    function restore() {
+        var r = restoreFun();
+        if (!r) { hint('There is nothing to restore.'); return; }
+        r.restoreFun();
+        act({ type: 'scratch-gui/restore-deletion/RESTORE_UPDATE', state: { restoreFun: null, deletedItem: '' } });
+    }
+
+    function turbo() {
+        var v = engine();
+        if (!v) { return; }
+        v.setTurboMode(!v.runtime.turboMode);
+        toast(v.runtime.turboMode ? 'Turbo Mode is on.' : 'Turbo Mode is off.');
+    }
+
+    /* View: the code area's zoom (Blockly's own, as its + / - / = buttons). */
+    function zoom(step) {
+        return function () {
+            showTab(0);
+            setTimeout(function () {
+                var b = blocks();
+                if (!b) { return; }
+                if (step) { b.ws.zoomCenter(step); return; }
+                b.ws.setScale(b.ws.options.zoomOptions.startScale);
+                b.ws.scrollCenter();
+            }, 50);
+        };
+    }
+
+    function cleanUp() {
+        showTab(0);
+        setTimeout(function () { var b = blocks(); if (b) { b.ws.cleanUp(); } }, 50);
+    }
+
+    function scratchMenus() {
+        return {
+            file: [
+                { label: 'New', title: 'Start a new, empty project (save this one first)', run: newProject },
+                { label: 'Save to DC360', keys: 'Ctrl+S', title: 'Save this project to DC360, where your teacher can play it', run: quickOrSave, sep: true },
+                { label: 'Save as new…', title: 'Save a separate copy with a new title', run: saveAsNew },
+                { label: 'Export to my computer (.sb3)', title: 'Download this project as a Scratch file. This does not save it to DC360.', run: exportSb3, sep: true }
+            ],
+            edit: [
+                { label: 'Undo', keys: 'Ctrl+Z', title: 'Undo the last change', run: function () { editDo('undo'); } },
+                { label: 'Redo', keys: 'Ctrl+Shift+Z', title: 'Do it again', run: function () { editDo('redo'); } },
+                { label: 'Cut', keys: 'Ctrl+X', title: 'Cut the chosen block (or picture, sound or text)', run: function () { editDo('cut'); } },
+                { label: 'Copy', keys: 'Ctrl+C', title: 'Copy the chosen block (or picture, sound or text)', run: function () { editDo('copy'); } },
+                { label: 'Paste', keys: 'Ctrl+V', title: 'Paste what you copied', run: function () { editDo('paste'); } },
+                { label: 'Restore what I deleted', title: 'Bring back the sprite, costume or sound you deleted last', run: restore, when: function () { return !!restoreFun(); } },
+                { label: 'Turbo Mode on / off', keys: 'Shift+click flag', title: 'Run the project as fast as it can go', run: turbo }
+            ],
+            insert: [
+                { label: 'Sprite…', title: 'Choose a sprite from the Scratch library', run: library('spriteLibrary') },
+                { label: 'Backdrop…', title: 'Choose a backdrop from the Scratch library', run: library('backdropLibrary') },
+                { label: 'Costume…', title: 'Choose a costume for the chosen sprite (a backdrop for the stage)', run: costumeLibrary },
+                { label: 'Sound…', title: 'Choose a sound from the Scratch library', run: library('soundLibrary', 2) },
+                { label: 'Extension…', title: 'Add more blocks: Music, Pen, Video Sensing...', run: library('extensionLibrary', 0), sep: true }
+            ],
+            view: [
+                { label: 'Full screen stage', title: 'Play the project on a big stage', run: function () { act({ type: 'scratch-gui/mode/SET_FULL_SCREEN', isFullScreen: true }); } },
+                { label: 'Zoom in', keys: 'Ctrl+wheel', title: 'Make the code bigger', run: zoom(1), sep: true },
+                { label: 'Zoom out', title: 'Make the code smaller', run: zoom(-1) },
+                { label: 'Normal size', title: 'The code back to its usual size', run: zoom(0) }
+            ],
+            // The panel layout (stage size) is in Arrange in every app (owner 2026-10-22).
+            arrange: [
+                { label: 'Small stage', title: 'A smaller stage, more room for code', run: function () { act({ type: 'scratch-gui/StageSize/SET_STAGE_SIZE', stageSize: 'small' }); } },
+                { label: 'Normal stage', title: 'The usual size of stage', run: function () { act({ type: 'scratch-gui/StageSize/SET_STAGE_SIZE', stageSize: 'large' }); } },
+                { label: 'Clean up blocks', title: 'Line up all the code of this sprite down the left', run: cleanUp, sep: true }
+            ]
+        };
+    }
+
+    /* Scratch's own File and Edit menu buttons (found by what they do, so in every language): hidden, they are in the
+       DC360 menus now. */
+    function hideScratchMenus(group) {
+        Array.prototype.forEach.call(group.children, function (n) {
+            if (n.hasAttribute('data-dc360-moved')) { return; }
+            var f = fiberOf(n);
+            for (var i = 0; f && i < 4; i++, f = f.return) {
+                var p = f.memoizedProps || {};
+                if (p.getSaveToComputerHandler || p.onRestoreOption) { n.setAttribute('data-dc360-moved', ''); return; }
+            }
+        });
+    }
+
+    function addMenuBar(bar, cur) {
+        var s = sayApi();
+        var group = bar.querySelector('[class*="menu-bar_file-group"]');
+        if (!s || !group) { return false; }
+        try {
+            var mb = s.menuBar({ app: 'scratch', at: group, where: 'before', menus: scratchMenus(), myWork: openWork });
+            mb.bar.classList.add('dc360-sc-bar');
+            mb.slot.appendChild(cur);
+            hideScratchMenus(group);
+            usingBar = true;
+            return true;
+        } catch (e) { return false; }
+    }
 
     function menuItem(label, onClick, sample) {
         var li = el('li', sample ? sample.className : 'dc360-sc-menu-item');
@@ -375,12 +654,19 @@
     function saveAsNew() { if (needLogin()) { return; } openSave(); }
 
     function addBar(bar) {
-        if (!bar || d.getElementById('dc360_sc_current')) { return; }
+        if (!bar) { return; }
+        if (d.getElementById('dc360_sc_current')) {
+            // React drew Scratch's buttons again: its File and Edit stay hidden.
+            if (usingBar) { var g = bar.querySelector('[class*="menu-bar_file-group"]'); if (g) { hideScratchMenus(g); } }
+            return;
+        }
         var group = bar.querySelector('[class*="menu-bar_file-group"]') || bar.firstElementChild;
         var cur = el('button', 'dc360-sc-current');
         cur.type = 'button';
         cur.id = 'dc360_sc_current';
         cur.addEventListener('click', quickOrSave);
+        if (addMenuBar(bar, cur)) { showCurrent(); return; }
+        // Without DC360 Help's menu bar: Help and Current file after Scratch's own menus.
         var help = el('div', (group.querySelector('[class*="menu-bar_menu-bar-item"]') || {}).className || 'dc360-sc-bar-item', '');
         help.classList.add('dc360-sc-help');
         help.appendChild(el('span', '', 'Help'));
@@ -394,7 +680,7 @@
     new MutationObserver(function () {
         var bar = d.querySelector('[class*="menu-bar_menu-bar_"]');
         if (bar) { addBar(bar); }
-        Array.prototype.forEach.call(d.querySelectorAll('[class*="menu-bar_menu-bar-menu"] ul, ul[class*="menu_menu_"]'), fixFileMenu);
+        if (!usingBar) { Array.prototype.forEach.call(d.querySelectorAll('[class*="menu-bar_menu-bar-menu"] ul, ul[class*="menu_menu_"]'), fixFileMenu); }
     }).observe(d.documentElement, { childList: true, subtree: true });
 
     /* ---------- refresh keeps the project ---------- */
