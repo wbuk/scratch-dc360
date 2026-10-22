@@ -556,6 +556,19 @@
         setTimeout(function () { var b = blocks(); if (b) { b.ws.cleanUp(); } }, 50);
     }
 
+    /* Edit > Copy picture of my work (every DC360 app, owner 2026-10-22): the stage as it is now (Scratch's own
+       snapshot of it). DC360 Help puts it on the clipboard and says so. */
+    function copyPictureOfWork() {
+        var s = sayApi();
+        if (!s || !s.copyPicture) { return; }
+        s.copyPicture(function () {
+            return new Promise(function (resolve, reject) {
+                if (!vm || !vm.renderer || !vm.renderer.requestSnapshot) { reject(new Error('No stage')); return; }
+                vm.renderer.requestSnapshot(function (dataUrl) { resolve(dataUrl); });
+            });
+        }, { win: window, name: 'scratch-stage' });
+    }
+
     function scratchMenus() {
         return {
             file: [
@@ -570,7 +583,8 @@
                 { label: 'Cut', keys: 'Ctrl+X', title: 'Cut the chosen block (or picture, sound or text)', run: function () { editDo('cut'); } },
                 { label: 'Copy', keys: 'Ctrl+C', title: 'Copy the chosen block (or picture, sound or text)', run: function () { editDo('copy'); } },
                 { label: 'Paste', keys: 'Ctrl+V', title: 'Paste what you copied', run: function () { editDo('paste'); } },
-                { label: 'Restore what I deleted', title: 'Bring back the sprite, costume or sound you deleted last', run: restore, when: function () { return !!restoreFun(); } },
+                { label: 'Copy picture of my work', title: 'Copy a picture of the stage, to paste into your Workbook or PowerPoint', sep: true, run: copyPictureOfWork },
+                { label: 'Restore what I deleted', sep: true, title: 'Bring back the sprite, costume or sound you deleted last', run: restore, when: function () { return !!restoreFun(); } },
                 { label: 'Turbo Mode on / off', keys: 'Shift+click flag', title: 'Run the project as fast as it can go', run: turbo }
             ],
             insert: [
@@ -616,6 +630,8 @@
             var mb = s.menuBar({ app: 'scratch', at: group, where: 'before', menus: scratchMenus(), myWork: openWork });
             mb.bar.classList.add('dc360-sc-bar');
             mb.slot.appendChild(cur);
+            // The title and its short description beside the menus, as in every DC360 app (owner 2026-10-22).
+            if (s.titleBlock) { s.titleBlock({ app: 'scratch', at: mb.bar, noun: 'project', current: function () { return current; }, save: openSave }); }
             hideScratchMenus(group);
             usingBar = true;
             return true;
